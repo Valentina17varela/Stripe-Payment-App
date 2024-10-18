@@ -10,12 +10,16 @@ const PendingCheckIns = () => {
     const [error, setError] = useState('');
     const [isReaderConnected, setIsReaderConnected] = useState(false);
     const [selectedReader, setSelectedReader] = useState<any>(null);
-    const [isDiscovering, setIsDiscovering] = useState(false); // Controla si está buscando lectores
-    const [isModalVisible, setModalVisible] = useState(false); // Controla la visibilidad del modal
+    const [isDiscovering, setIsDiscovering] = useState(false);
+    const [isModalVisible, setModalVisible] = useState(false);
     const [discoveredReadersState, setDiscoveredReadersState] = useState<any[]>([]);
+    const [isModalVisiblePayment, setModalVisiblePayment] = useState(false);
+    const [paymentInfo, setPaymentInfo] = useState<any>(null);
+    const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+    const [modalMessage, setModalMessage] = useState('');  
 
     // Stripe Terminal hooks
-    const { discoverReaders, connectBluetoothReader, discoveredReaders, createPaymentIntent, collectPaymentMethod } = useStripeTerminal(
+    const { discoverReaders, disconnectReader, connectBluetoothReader, discoveredReaders, createPaymentIntent, collectPaymentMethod, confirmPaymentIntent } = useStripeTerminal(
         {
             onUpdateDiscoveredReaders: (readers) => {
                 setDiscoveredReadersState(readers);
@@ -56,6 +60,15 @@ const PendingCheckIns = () => {
 
         setIsDiscovering(true);
 
+        if (!selectedReader) {
+            console.log('Already connected to a reader, disconnecting first...');
+    
+            await disconnectReader(); // Desconectar el lector actual
+
+            setSelectedReader(null);
+            setIsReaderConnected(false);
+        }
+
         const { error } = await discoverReaders({
             discoveryMethod: 'bluetoothScan',
             simulated: true,
@@ -84,36 +97,127 @@ const PendingCheckIns = () => {
         }
     };
 
-    const handlePayment = async (checkIn: { customer?: string; property?: string; checkin?: string; checkout?: string; charge: any; external_id?: string; }) => {
-        if (!isReaderConnected) {
+    const handlePayment = async (checkIn: { external_reference?: string; customer?: string; email?: string; property?: string; checkin?: string; checkout?: string; charge: any; external_id?: string; }) => {
+        if (!selectedReader) {
             Alert.alert('No Reader', 'Please connect a reader first.');
             return;
         }
-
+    
         try {
-            // Crea un PaymentIntent
+            setIsProcessingPayment(true);
+            setModalMessage('Processing payment...');
+
+            let customerId = null;
+    
+            // Paso 1: Busca el cliente en Stripe usando el `email` o `external_reference`
+            const customerSearchResponse = await fetch(`https://api.stripe.com/v1/customers/search?query=email:'${checkIn.email}'`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer sk_test_V5IsafkyZHRsTxYDF49Nk8mq00snTjIw2x`,  // Reemplaza con tu clave secreta de Stripe
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+            });
+    
+            const customerSearchData = await customerSearchResponse.json();
+    
+            if (customerSearchData.data && customerSearchData.data.length > 0) {
+                customerId = customerSearchData.data[0].id;
+                console.log('Cliente encontrado:', customerId);
+            } else {
+                const customerCreationResponse = await fetch('https://api.stripe.com/v1/customers', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer sk_test_V5IsafkyZHRsTxYDF49Nk8mq00snTjIw2x`,  // Reemplaza con tu clave secreta de Stripe
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                    },
+                    body: new URLSearchParams({
+                        name: checkIn.customer || 'Unknown',
+                        description: `${checkIn.external_id} ${checkIn.customer}`,
+                        email: checkIn.email || 'email@unknown.com',
+                    })
+                });
+    
+                const customerCreationData = await customerCreationResponse.json();
+    
+                if (customerCreationData.error) {
+                    console.log('Error al crear cliente:', customerCreationData.error);
+                    Alert.alert('Customer Creation Error', customerCreationData.error.message);
+                    return;
+                }
+    
+                // Asigna el ID del cliente creado
+                customerId = customerCreationData.id;
+                console.log('Cliente creado:', customerId);
+            }
+    
+            // Paso 3: Crea un PaymentIntent con el ID del cliente
             const { paymentIntent, error: createError } = await createPaymentIntent({
                 amount: checkIn.charge * 100, // Multiplica por 100 porque Stripe trabaja con centavos
                 currency: 'usd',
-            });
+                paymentMethodTypes: ['card_present'],
+                captureMethod: 'automatic',
+                customer: customerId,  // Usa el ID del cliente creado o encontrado
 
-            if (createError) {
-                Alert.alert('Payment Error', `Failed to create payment intent: ${createError.message}`);
+            });
+    
+            if (createError || !paymentIntent) {
+                console.log("Error al crear PaymentIntent:", createError);
+                Alert.alert('Payment Error', `Failed to create payment intent: ${createError?.message || 'Unknown error'}`);
                 return;
             }
+    
+            console.log("PaymentIntent creado:", paymentIntent);
 
-            // Recoge el método de pago utilizando el lector
-            // const { error: collectError } = await collectPaymentMethod(paymentIntent.id);
-            // if (collectError) {
-            //     Alert.alert('Payment Error', `Failed to collect payment: ${collectError.message}`);
-            //     return;
-            // }
+            setModalMessage('Please insert or tap the card on the reader');
+    
+            // Paso 4: Recoge el método de pago
+            const { error: collectError } = await collectPaymentMethod({ paymentIntent });
+            if (collectError) {
+                console.log("Error al recoger el método de pago:", collectError);
+                Alert.alert('Payment Error', `Failed to collect payment: ${collectError.message}`);
+                return;
+            }
+    
+            console.log("Método de pago recogido exitosamente");
+            setModalMessage('Processing payment...');
+    
+            // Paso 5: Confirma el PaymentIntent
+            const { paymentIntent: paymentConfirmation, error: confirmError } = await confirmPaymentIntent({ paymentIntent });
+            if (confirmError || !paymentConfirmation) {
+                console.log("Error al confirmar PaymentIntent:", confirmError);
+                Alert.alert('Payment Error', `Failed to confirm payment: ${confirmError?.message || 'Unknown error'}`);
+                return;
+            }
+    
+            console.log("PaymentIntent confirmado:", paymentConfirmation);
+    
+            // Muestra la información del pago
+            setPaymentInfo({
+                customer: checkIn.customer,
+                property: checkIn.property,
+                amount: paymentConfirmation.amount / 100,  // Divide por 100 para obtener dólares
+                paymentMethod: paymentConfirmation.charges[0].paymentMethodDetails?.cardPresentDetails?.last4,
+                status: paymentConfirmation.status,
+            });
+    
+            setIsProcessingPayment(false);
+            setModalVisiblePayment(true);
+    
         } catch (err) {
-            Alert.alert('Payment Error', `Error processing payment`);
+            console.log("Error no manejado:", err);
+    
+            // Muestra un modal con información básica del pago si ocurre un error
+            setPaymentInfo({
+                customer: checkIn.customer,
+                property: checkIn.property,
+                amount: checkIn.charge,
+                status: 'failed',
+            });
+            setModalVisiblePayment(true);
         }
     };
 
-    const renderItem = ({ item }: { item: { customer: string; property: string; checkin: string; checkout: string; charge: number; external_id: string; } }) => (
+    const renderItem = ({ item }: { item: { email: string, customer: string; property: string; checkin: string; checkout: string; charge: number; external_reference: string; } }) => (
         <View style={styles.item}>
             <Text style={styles.title}>{item.customer}</Text>
             <Text style={styles.subtitle}>{item.property}</Text>
@@ -136,9 +240,10 @@ const PendingCheckIns = () => {
             <View style={styles.header}>
                 <Text style={styles.headerTitle}>Hotel Arya</Text>
                 <TouchableOpacity onPress={handleDiscoverReaders}>
-                    <Text style={styles.headerIcon}>Connect Reader</Text>
+                    <Text style={styles.headerIcon}>Connect Terminal</Text>
                 </TouchableOpacity>
             </View>
+
             <Text style={styles.subHeader}>Pending Check-Ins</Text>
             {loading ? (
                 <View style={styles.centered}>
@@ -152,39 +257,78 @@ const PendingCheckIns = () => {
                 <FlatList
                     data={pendingCheckIns}
                     renderItem={renderItem}
-                    keyExtractor={(item) => item.external_id}
+                    keyExtractor={(item) => item.external_reference}
                     contentContainerStyle={styles.listContent}
                 />
             )}
 
-<Modal
-        visible={isModalVisible}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setModalVisible(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Select a Reader</Text>
-            {discoveredReaders.length > 0 ? (
-              <FlatList
-                data={discoveredReaders}
-                keyExtractor={(reader) => reader.serialNumber}
-                renderItem={({ item: reader }) => (
-                  <TouchableOpacity onPress={() => handleConnectBluetoothReader(reader)}>
-                    <Text style={styles.readerItem}>{reader.deviceType} - {reader.serialNumber}</Text>
-                  </TouchableOpacity>
-                )}
-              />
-            ) : (
-              <Text>No readers found</Text>
-            )}
-            <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
-              <Text style={styles.closeButtonText}>Close</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-      </Modal>
+                <Modal
+                    visible={isModalVisible}
+                    transparent={true}
+                    animationType="slide"
+                    onRequestClose={() => setModalVisible(false)}
+                >
+                    <View style={styles.modalContainer}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Select a Reader</Text>
+                        {discoveredReaders.length > 0 ? (
+                        <FlatList
+                            data={discoveredReaders}
+                            keyExtractor={(reader) => reader.serialNumber}
+                            renderItem={({ item: reader }) => (
+                            <TouchableOpacity onPress={() => handleConnectBluetoothReader(reader)}>
+                                <Text style={styles.readerItem}>{reader.deviceType} - {reader.serialNumber}</Text>
+                            </TouchableOpacity>
+                            )}
+                        />
+                        ) : (
+                        <Text>No readers found</Text>
+                        )}
+                        <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
+                        <Text style={styles.closeButtonText}>Close</Text>
+                        </TouchableOpacity>
+                    </View>
+                    </View>
+                </Modal>
+
+            <Modal
+                visible={isModalVisiblePayment}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={styles.modalContainer}>
+                <View style={styles.modalContent}>
+                    <Text style={styles.modalTitle}>Payment Successful</Text>
+                    {paymentInfo && (
+                    <View>
+                        <Text>Customer: {paymentInfo.customer}</Text>
+                        <Text>Property: {paymentInfo.property}</Text>
+                        <Text>Amount: ${paymentInfo.amount}</Text>
+                        <Text>Payment Method: {paymentInfo.paymentMethod}</Text>
+                        <Text>Status: {paymentInfo.status}</Text>
+                    </View>
+                    )}
+                    <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisiblePayment(false)}>
+                    <Text style={styles.closeButtonText}>Close</Text>
+                    </TouchableOpacity>
+                </View>
+                </View>
+            </Modal>
+
+            <Modal
+            transparent={true}
+            animationType="slide"
+            visible={isProcessingPayment}
+            onRequestClose={() => setIsProcessingPayment(false)}
+        >
+            <View style={styles.modalContainer}>
+                <View style={styles.modalContent}>
+                    <Text>{modalMessage}</Text>
+                    <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
+                </View>
+            </View>
+        </Modal>
         </SafeAreaView>
     );
 };
@@ -312,6 +456,9 @@ const styles = StyleSheet.create({
     color: 'white',
     fontWeight: 'bold',
   },
+  modalLoading: {
+    marginTop: 10,
+},
 });
 
 export default PendingCheckIns;
