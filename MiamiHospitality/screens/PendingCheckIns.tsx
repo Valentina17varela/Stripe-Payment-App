@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, FlatList, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, SafeAreaView, Modal } from 'react-native';
+import { View, Text, FlatList, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, SafeAreaView, Modal, Button } from 'react-native';
 import axios from 'axios';
 import { useStripeTerminal } from '@stripe/stripe-terminal-react-native';
 
@@ -16,7 +16,10 @@ const PendingCheckIns = () => {
     const [isModalVisiblePayment, setModalVisiblePayment] = useState(false);
     const [paymentInfo, setPaymentInfo] = useState<any>(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
-    const [modalMessage, setModalMessage] = useState('');  
+    const [modalMessage, setModalMessage] = useState('');
+    const [selectedCheckIn, setSelectedCheckIn] = useState<{ email: string, customer: string; property: string; checkin: string; checkout: string; charge: number; external_reference: string; total: string; paid: string; debt: string; } | null>(null);
+    const [isConfirmModalVisible, setConfirmModalVisible] = useState(false);
+    const [isConnecting, setIsConnecting] = useState(false);
 
     // Stripe Terminal hooks
     const { discoverReaders, disconnectReader, connectBluetoothReader, discoveredReaders, createPaymentIntent, collectPaymentMethod, confirmPaymentIntent } = useStripeTerminal(
@@ -53,21 +56,13 @@ const PendingCheckIns = () => {
     };
 
     const handleDiscoverReaders = async () => {
+        await disconnectReader();
         if (isDiscovering) {
             console.log('Reader discovery already in progress');
             return;
         }
 
         setIsDiscovering(true);
-
-        if (!selectedReader) {
-            console.log('Already connected to a reader, disconnecting first...');
-    
-            await disconnectReader(); // Desconectar el lector actual
-
-            setSelectedReader(null);
-            setIsReaderConnected(false);
-        }
 
         const { error } = await discoverReaders({
             discoveryMethod: 'bluetoothScan',
@@ -82,6 +77,7 @@ const PendingCheckIns = () => {
     };
 
     const handleConnectBluetoothReader = async (reader: any) => {
+        setIsConnecting(true);
         const { reader: connectedReader, error } = await connectBluetoothReader({
             reader,
             locationId: reader.locationId,
@@ -90,6 +86,7 @@ const PendingCheckIns = () => {
         if (error) {
             Alert.alert('Connection Error', `${error.code}: ${error.message}`);
         } else {
+            setIsConnecting(false);
             setSelectedReader(connectedReader);
             setIsReaderConnected(true);
             setModalVisible(false);
@@ -97,7 +94,14 @@ const PendingCheckIns = () => {
         }
     };
 
-    const handlePayment = async (checkIn: { external_reference?: string; customer?: string; email?: string; property?: string; checkin?: string; checkout?: string; charge: any; external_id?: string; }) => {
+    const handleConfirmPayment = (checkIn: any) => {
+        setSelectedCheckIn(checkIn);
+        setConfirmModalVisible(true);
+      };
+
+    const handlePayment = async (checkIn: { external_reference?: string; customer?: string; email?: string; property?: string; checkin?: string; checkout?: string; charge: any; external_id?: string; total?:string; debt?:string; paid?:string}) => {
+        setConfirmModalVisible(false);
+
         if (!selectedReader) {
             Alert.alert('No Reader', 'Please connect a reader first.');
             return;
@@ -144,6 +148,8 @@ const PendingCheckIns = () => {
     
                 if (customerCreationData.error) {
                     console.log('Error al crear cliente:', customerCreationData.error);
+                    setModalMessage('Error creating customer');
+                    setIsProcessingPayment(false);
                     return;
                 }
 
@@ -162,6 +168,7 @@ const PendingCheckIns = () => {
             if (createError || !paymentIntent) {
                 console.log("Error al crear PaymentIntent:", createError);
                 Alert.alert('Payment Error', `Failed to create payment intent: ${createError?.message || 'Unknown error'}`);
+                setIsProcessingPayment(false);
                 return;
             }
     
@@ -174,6 +181,7 @@ const PendingCheckIns = () => {
             if (collectError) {
                 console.log("Error al recoger el método de pago:", collectError);
                 Alert.alert('Payment Error', `Failed to collect payment: ${collectError.message}`);
+                setIsProcessingPayment(false);
                 return;
             }
     
@@ -185,6 +193,7 @@ const PendingCheckIns = () => {
             if (confirmError || !paymentConfirmation) {
                 console.log("Error al confirmar PaymentIntent:", confirmError);
                 Alert.alert('Payment Error', `Failed to confirm payment: ${confirmError?.message || 'Unknown error'}`);
+                setIsProcessingPayment(false);
                 return;
             }
     
@@ -222,7 +231,7 @@ const PendingCheckIns = () => {
             <View style={styles.footerContainer}>
                 <Text style={styles.charge}>${item.charge}</Text>
                 <TouchableOpacity 
-                    onPress={() => handlePayment(item)}
+                    onPress={() => handleConfirmPayment(item)}
                     style={styles.button}
                 >
                     <Text style={styles.buttonText}>Process Payment</Text>
@@ -258,34 +267,43 @@ const PendingCheckIns = () => {
                 />
             )}
 
-                <Modal
-                    visible={isModalVisible}
-                    transparent={true}
-                    animationType="slide"
-                    onRequestClose={() => setModalVisible(false)}
-                >
-                    <View style={styles.modalContainer}>
+            <Modal
+                visible={isModalVisible}
+                transparent={true}
+                animationType="slide"
+                onRequestClose={() => setModalVisible(false)}
+            >
+                <View style={styles.modalContainer}>
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Select a Reader</Text>
-                        {discoveredReaders.length > 0 ? (
-                        <FlatList
-                            data={discoveredReaders}
-                            keyExtractor={(reader) => reader.serialNumber}
-                            renderItem={({ item: reader }) => (
-                            <TouchableOpacity onPress={() => handleConnectBluetoothReader(reader)}>
-                                <Text style={styles.readerItem}>{reader.deviceType} - {reader.serialNumber}</Text>
-                            </TouchableOpacity>
-                            )}
-                        />
+                        
+                        {(isConnecting) ? (
+                            <View style={styles.modalContent}>
+                                <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
+                                <Text>{"Connecting to reader..."}</Text>
+                            </View>
                         ) : (
-                        <Text>No readers found</Text>
+                            discoveredReaders.length > 0 ? (
+                                <FlatList
+                                    data={discoveredReaders}
+                                    keyExtractor={(reader) => reader.serialNumber}
+                                    renderItem={({ item: reader }) => (
+                                        <TouchableOpacity onPress={() => handleConnectBluetoothReader(reader)}>
+                                            <Text style={styles.readerItem}>{reader.deviceType} - {reader.serialNumber}</Text>
+                                        </TouchableOpacity>
+                                    )}
+                                />
+                            ) : (
+                                <Text>No readers found</Text>
+                            )
                         )}
+
                         <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisible(false)}>
-                        <Text style={styles.closeButtonText}>Close</Text>
+                            <Text style={styles.closeButtonText}>Close</Text>
                         </TouchableOpacity>
                     </View>
-                    </View>
-                </Modal>
+                </View>
+            </Modal>
 
             <Modal
                 visible={isModalVisiblePayment}
@@ -313,18 +331,71 @@ const PendingCheckIns = () => {
             </Modal>
 
             <Modal
-            transparent={true}
-            animationType="slide"
-            visible={isProcessingPayment}
-            onRequestClose={() => setIsProcessingPayment(false)}
-        >
-            <View style={styles.modalContainer}>
-                <View style={styles.modalContent}>
-                    <Text>{modalMessage}</Text>
-                    <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
+                transparent={true}
+                animationType="slide"
+                visible={isProcessingPayment}
+                onRequestClose={() => setIsProcessingPayment(false)}
+            >
+                <View style={styles.modalContainer}>
+                    <View style={styles.modalContent}>
+                        <Text>{modalMessage}</Text>
+                        <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
+                    </View>
                 </View>
-            </View>
-        </Modal>
+            </Modal>
+
+            <Modal
+                visible={isConfirmModalVisible}
+                animationType="slide"
+                transparent={true}
+            >
+                <View style={styles.modalContainer}>
+                    <View style={styles.modalContent}>
+                        <Text style={styles.modalTitle}>Confirm Payment</Text>
+                        {selectedCheckIn && (
+                        <>
+                            <View style={styles.infoRow}>
+                                <Text style={styles.label}>Customer:</Text>
+                                <Text style={styles.value}>{selectedCheckIn.customer}</Text>
+                            </View>
+                            <View style={styles.infoRow}>
+                                <Text style={styles.label}>Property:</Text>
+                                <Text style={styles.value}>{selectedCheckIn.property}</Text>
+                            </View>
+                            <View style={styles.infoRow}>
+                                <Text style={styles.label}>Check-in:</Text>
+                                <Text style={styles.value}>{selectedCheckIn.checkin}</Text>
+                            </View>
+                            <View style={styles.infoRow}>
+                                <Text style={styles.label}>Check-out:</Text>
+                                <Text style={styles.value}>{selectedCheckIn.checkout}</Text>
+                            </View>
+                            <View style={styles.infoRow}>
+                                <Text style={styles.label}>Total:</Text>
+                                <Text style={styles.value}>${selectedCheckIn.total}</Text>
+                            </View>
+                            <View style={styles.infoRow}>
+                                <Text style={styles.label}>Paid:</Text>
+                                <Text style={styles.value}>${selectedCheckIn.paid}</Text>
+                            </View>
+                            <View style={styles.infoRow}>
+                                <Text style={styles.debtLabel}>Debt:</Text>
+                                <Text style={styles.debtValue}>${selectedCheckIn.debt}</Text>
+                            </View>
+                        </>
+                        )}
+
+                        <View style={styles.buttonRow}>
+                            <TouchableOpacity style={styles.confirmButton} onPress={() => selectedCheckIn && handlePayment(selectedCheckIn)}>
+                                <Text style={styles.buttonText}>Confirm</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.cancelButton} onPress={() => setConfirmModalVisible(false)}>
+                                <Text style={styles.buttonText}>Cancel</Text>
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+                </View>
+            </Modal>
         </SafeAreaView>
     );
 };
@@ -454,6 +525,52 @@ const styles = StyleSheet.create({
   },
   modalLoading: {
     marginTop: 10,
+ },
+infoRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+    marginBottom: 10,
+},
+label: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#333',
+},
+value: {
+    fontSize: 16,
+    color: '#333',
+},
+debtLabel: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#ed6b75',
+},
+debtValue: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ed6b75', 
+},
+buttonRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 20,
+    width: '100%',
+},
+confirmButton: {
+    backgroundColor: '#3bc55e',
+    padding: 10,
+    borderRadius: 5,
+    flex: 1,
+    marginRight: 10,
+    alignItems: 'center',
+},
+cancelButton: {
+    backgroundColor: '#f53b57',
+    padding: 10,
+    borderRadius: 5,
+    flex: 1,
+    alignItems: 'center',
 },
 });
 
