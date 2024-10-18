@@ -136,7 +136,7 @@ const PendingCheckIns = () => {
                     },
                     body: JSON.stringify({
                         email: checkIn.email || 'unknown@gmail.com',
-                        name: checkIn.customer || '',
+                        name: `${checkIn.external_reference || ''} ${checkIn.customer || ''}`.trim()
                     }),
                 });
     
