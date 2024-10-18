@@ -26,6 +26,7 @@ const PendingCheckIns = () => {
         {
             onUpdateDiscoveredReaders: (readers) => {
                 setDiscoveredReadersState(readers);
+                setIsDiscovering(false);
                 setModalVisible(true);
             }
         }
@@ -56,17 +57,18 @@ const PendingCheckIns = () => {
     };
 
     const handleDiscoverReaders = async () => {
+        setIsDiscovering(true);
+        setModalVisible(true);
+
         await disconnectReader();
         if (isDiscovering) {
             console.log('Reader discovery already in progress');
             return;
         }
 
-        setIsDiscovering(true);
-
         const { error } = await discoverReaders({
             discoveryMethod: 'bluetoothScan',
-            simulated: true,
+            simulated: false,
         });
 
         setIsDiscovering(false);
@@ -86,9 +88,9 @@ const PendingCheckIns = () => {
         if (error) {
             Alert.alert('Connection Error', `${error.code}: ${error.message}`);
         } else {
-            setIsConnecting(false);
             setSelectedReader(connectedReader);
             setIsReaderConnected(true);
+            setIsConnecting(false);
             setModalVisible(false);
             Alert.alert('Reader Connected');
         }
@@ -111,8 +113,6 @@ const PendingCheckIns = () => {
             console.log('Payment already in progress');
             return;
           }
-
-        console.log('Processing payment for check-in:', checkIn);
     
         try {
             setIsProcessingPayment(true);
@@ -123,7 +123,7 @@ const PendingCheckIns = () => {
             const customerSearchResponse = await fetch(`https://api.stripe.com/v1/customers/search?query=email:'${checkIn.email}'`, {
                 method: 'GET',
                 headers: {
-                    'Authorization': `Bearer sk_test_V5IsafkyZHRsTxYDF49Nk8mq00snTjIw2x`,  // Reemplaza con tu clave secreta de Stripe
+                    'Authorization': `Bearer sk_test_4eC39HqLyjWDarjtT1zdp7dc`,
                     'Content-Type': 'application/x-www-form-urlencoded',
                 },
             });
@@ -198,6 +198,17 @@ const PendingCheckIns = () => {
             }
     
             console.log("PaymentIntent confirmado:", paymentConfirmation);
+
+            // enviar pagado a bksn
+            fetch('https://email.mvr-management.com/process_payment_bookens', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    checkIn: checkIn
+                }),
+            });
     
             // Muestra la información del pago
             setPaymentInfo({
@@ -207,7 +218,7 @@ const PendingCheckIns = () => {
                 paymentMethod: paymentConfirmation.charges[0].paymentMethodDetails?.cardPresentDetails?.last4,
                 status: paymentConfirmation.status,
             });
-    
+
             setIsProcessingPayment(false);
             setModalVisiblePayment(true);
     
@@ -277,10 +288,10 @@ const PendingCheckIns = () => {
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Select a Reader</Text>
                         
-                        {(isConnecting) ? (
+                        {(isConnecting || isDiscovering) ? (
                             <View style={styles.modalContent}>
                                 <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
-                                <Text>{"Connecting to reader..."}</Text>
+                                <Text>{isDiscovering ? "Discovering readers..." : "Connecting to reader..."}</Text>
                             </View>
                         ) : (
                             discoveredReaders.length > 0 ? (
