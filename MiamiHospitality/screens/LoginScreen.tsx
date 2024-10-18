@@ -21,7 +21,7 @@ export default function LoginScreen() {
       const data = await response.json();
       if (response.status === 200) {
         Alert.alert(data.message);
-        navigation.navigate('PendingCheckIns'); // Navegar a la pantalla de pending check-ins
+        navigation.navigate('PendingCheckIns');
       } else {
         Alert.alert('Error', data.message);
       }
@@ -94,6 +94,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
     textAlign: 'center',
+    color: 'black'
   },
   input: {
     height: 40,
