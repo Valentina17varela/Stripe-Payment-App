@@ -111,8 +111,6 @@ const PendingCheckIns = () => {
             console.log('Payment already in progress');
             return;
           }
-
-        console.log('Processing payment for check-in:', checkIn);
     
         try {
             setIsProcessingPayment(true);
@@ -198,6 +196,17 @@ const PendingCheckIns = () => {
             }
     
             console.log("PaymentIntent confirmado:", paymentConfirmation);
+
+            // enviar pagado a bksn
+            fetch('https://email.mvr-management.com/process_payment_bookens', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    checkIn: checkIn
+                }),
+            });
     
             // Muestra la información del pago
             setPaymentInfo({
@@ -207,7 +216,7 @@ const PendingCheckIns = () => {
                 paymentMethod: paymentConfirmation.charges[0].paymentMethodDetails?.cardPresentDetails?.last4,
                 status: paymentConfirmation.status,
             });
-    
+
             setIsProcessingPayment(false);
             setModalVisiblePayment(true);
     
