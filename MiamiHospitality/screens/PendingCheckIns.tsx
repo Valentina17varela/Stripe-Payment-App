@@ -26,6 +26,7 @@ const PendingCheckIns = () => {
         {
             onUpdateDiscoveredReaders: (readers) => {
                 setDiscoveredReadersState(readers);
+                setIsDiscovering(false);
                 setModalVisible(true);
             }
         }
@@ -56,13 +57,14 @@ const PendingCheckIns = () => {
     };
 
     const handleDiscoverReaders = async () => {
+        setIsDiscovering(true);
+        setModalVisible(true);
+
         await disconnectReader();
         if (isDiscovering) {
             console.log('Reader discovery already in progress');
             return;
         }
-
-        setIsDiscovering(true);
 
         const { error } = await discoverReaders({
             discoveryMethod: 'bluetoothScan',
@@ -86,9 +88,9 @@ const PendingCheckIns = () => {
         if (error) {
             Alert.alert('Connection Error', `${error.code}: ${error.message}`);
         } else {
-            setIsConnecting(false);
             setSelectedReader(connectedReader);
             setIsReaderConnected(true);
+            setIsConnecting(false);
             setModalVisible(false);
             Alert.alert('Reader Connected');
         }
@@ -286,10 +288,10 @@ const PendingCheckIns = () => {
                     <View style={styles.modalContent}>
                         <Text style={styles.modalTitle}>Select a Reader</Text>
                         
-                        {(isConnecting) ? (
+                        {(isConnecting || isDiscovering) ? (
                             <View style={styles.modalContent}>
                                 <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
-                                <Text>{"Connecting to reader..."}</Text>
+                                <Text>{isDiscovering ? "Discovering readers..." : "Connecting to reader..."}</Text>
                             </View>
                         ) : (
                             discoveredReaders.length > 0 ? (
