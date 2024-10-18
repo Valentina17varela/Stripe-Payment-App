@@ -12,10 +12,17 @@ const PendingCheckIns = () => {
     const [selectedReader, setSelectedReader] = useState<any>(null);
     const [isDiscovering, setIsDiscovering] = useState(false); // Controla si está buscando lectores
     const [isModalVisible, setModalVisible] = useState(false); // Controla la visibilidad del modal
-    const [discoveredReadersState, setDiscoveredReadersState] = useState([]);
+    const [discoveredReadersState, setDiscoveredReadersState] = useState<any[]>([]);
 
     // Stripe Terminal hooks
-    const { discoverReaders, connectBluetoothReader, discoveredReaders, createPaymentIntent, collectPaymentMethod } = useStripeTerminal();
+    const { discoverReaders, connectBluetoothReader, discoveredReaders, createPaymentIntent, collectPaymentMethod } = useStripeTerminal(
+        {
+            onUpdateDiscoveredReaders: (readers) => {
+                setDiscoveredReadersState(readers);
+                setModalVisible(true);
+            }
+        }
+    );
 
     useEffect(() => {
         initialize();
@@ -58,17 +65,13 @@ const PendingCheckIns = () => {
 
         if (error) {
             Alert.alert('Discover readers error', `${error.code}: ${error.message}`);
-        } else if (discoveredReaders.length > 0) {
-            handleConnectBluetoothReader(discoveredReaders[0]);
-        } else {
-            Alert.alert('No readers found', 'Please try again.');
-        }
+        } 
     };
 
     const handleConnectBluetoothReader = async (reader: any) => {
         const { reader: connectedReader, error } = await connectBluetoothReader({
             reader,
-            locationId: reader.locationId, // Asegúrate de que el lector tenga una ubicación asignada
+            locationId: reader.locationId,
         });
 
         if (error) {
@@ -76,7 +79,8 @@ const PendingCheckIns = () => {
         } else {
             setSelectedReader(connectedReader);
             setIsReaderConnected(true);
-            Alert.alert('Reader Connected', `Connected to: ${connectedReader.label}`);
+            setModalVisible(false);
+            Alert.alert('Reader Connected');
         }
     };
 
