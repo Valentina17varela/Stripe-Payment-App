@@ -20,7 +20,6 @@ export default function LoginScreen() {
       });
       const data = await response.json();
       if (response.status === 200) {
-        Alert.alert(data.message);
         navigation.navigate('PendingCheckIns');
       } else {
         Alert.alert('Error', data.message);

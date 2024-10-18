@@ -102,6 +102,13 @@ const PendingCheckIns = () => {
             Alert.alert('No Reader', 'Please connect a reader first.');
             return;
         }
+
+        if (isProcessingPayment) {
+            console.log('Payment already in progress');
+            return;
+          }
+
+        console.log('Processing payment for check-in:', checkIn);
     
         try {
             setIsProcessingPayment(true);
@@ -109,7 +116,6 @@ const PendingCheckIns = () => {
 
             let customerId = null;
     
-            // Paso 1: Busca el cliente en Stripe usando el `email` o `external_reference`
             const customerSearchResponse = await fetch(`https://api.stripe.com/v1/customers/search?query=email:'${checkIn.email}'`, {
                 method: 'GET',
                 headers: {
@@ -122,42 +128,35 @@ const PendingCheckIns = () => {
     
             if (customerSearchData.data && customerSearchData.data.length > 0) {
                 customerId = customerSearchData.data[0].id;
-                console.log('Cliente encontrado:', customerId);
             } else {
-                const customerCreationResponse = await fetch('https://api.stripe.com/v1/customers', {
+                const customerCreationResponse = await fetch('https://email.mvr-management.com/create_customer_stripe', {
                     method: 'POST',
                     headers: {
-                        'Authorization': `Bearer sk_test_V5IsafkyZHRsTxYDF49Nk8mq00snTjIw2x`,  // Reemplaza con tu clave secreta de Stripe
-                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'Content-Type': 'application/json',
                     },
-                    body: new URLSearchParams({
-                        name: checkIn.customer || 'Unknown',
-                        description: `${checkIn.external_id} ${checkIn.customer}`,
-                        email: checkIn.email || 'email@unknown.com',
-                    })
+                    body: JSON.stringify({
+                        email: checkIn.email || 'unknown@gmail.com',
+                        name: checkIn.customer || '',
+                    }),
                 });
     
                 const customerCreationData = await customerCreationResponse.json();
     
                 if (customerCreationData.error) {
                     console.log('Error al crear cliente:', customerCreationData.error);
-                    Alert.alert('Customer Creation Error', customerCreationData.error.message);
                     return;
                 }
-    
-                // Asigna el ID del cliente creado
+
                 customerId = customerCreationData.id;
-                console.log('Cliente creado:', customerId);
             }
     
             // Paso 3: Crea un PaymentIntent con el ID del cliente
             const { paymentIntent, error: createError } = await createPaymentIntent({
-                amount: checkIn.charge * 100, // Multiplica por 100 porque Stripe trabaja con centavos
+                amount: checkIn.charge * 100,
                 currency: 'usd',
                 paymentMethodTypes: ['card_present'],
                 captureMethod: 'automatic',
-                customer: customerId,  // Usa el ID del cliente creado o encontrado
-
+                customer: customerId,
             });
     
             if (createError || !paymentIntent) {
@@ -204,9 +203,6 @@ const PendingCheckIns = () => {
             setModalVisiblePayment(true);
     
         } catch (err) {
-            console.log("Error no manejado:", err);
-    
-            // Muestra un modal con información básica del pago si ocurre un error
             setPaymentInfo({
                 customer: checkIn.customer,
                 property: checkIn.property,
