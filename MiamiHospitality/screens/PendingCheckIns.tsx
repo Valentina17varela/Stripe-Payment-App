@@ -82,7 +82,7 @@ const PendingCheckIns = () => {
         setIsConnecting(true);
         const { reader: connectedReader, error } = await connectBluetoothReader({
             reader,
-            locationId: reader.locationId,
+            locationId: 'tml_FxXDAfDF0J4Ibh',
         });
 
         if (error) {
