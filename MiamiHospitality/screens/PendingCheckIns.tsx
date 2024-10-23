@@ -464,6 +464,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 4,
+    color: '#333',
   },
   subtitle: {
     fontSize: 16,
@@ -514,11 +515,13 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     width: '80%',
     alignItems: 'center',
+    color: 'black',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 20,
+    color: 'black',
   },
   readerItem: {
     paddingVertical: 10,
