@@ -291,7 +291,7 @@ const PendingCheckIns = () => {
                         {(isConnecting || isDiscovering) ? (
                             <View style={styles.modalContent}>
                                 <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
-                                <Text style={styles.text}>{isDiscovering ? "Discovering readers..." : "Connecting to reader..."}</Text>
+                                <Text style={styles.textDefault}>{isDiscovering ? "Discovering readers..." : "Connecting to reader..."}</Text>
                             </View>
                         ) : (
                             discoveredReaders.length > 0 ? (
@@ -324,14 +324,14 @@ const PendingCheckIns = () => {
             >
                 <View style={styles.modalContainer}>
                 <View style={styles.modalContent}>
-                    <Text style={styles.modalTitle}>Payment Successful</Text>
+                    <Text style={styles.modalTitleSucced}>Payment Successful</Text>
                     {paymentInfo && (
                     <View>
-                        <Text style={styles.text}>Customer: {paymentInfo.customer}</Text>
-                        <Text style={styles.text}>Property: {paymentInfo.property}</Text>
-                        <Text style={styles.text}>Amount: ${paymentInfo.amount}</Text>
-                        <Text style={styles.text}>Payment Method: {paymentInfo.paymentMethod}</Text>
-                        <Text style={styles.text}>Status: {paymentInfo.status}</Text>
+                        <Text style={styles.textDefault}>Customer: {paymentInfo.customer}</Text>
+                        <Text style={styles.textDefault}>Property: {paymentInfo.property}</Text>
+                        <Text style={styles.textDefault}>Amount: ${paymentInfo.amount}</Text>
+                        <Text style={styles.textDefault}>Payment Method: {paymentInfo.paymentMethod}</Text>
+                        <Text style={styles.textDefault}>Status: {paymentInfo.status}</Text>
                     </View>
                     )}
                     <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisiblePayment(false)}>
@@ -349,7 +349,7 @@ const PendingCheckIns = () => {
             >
                 <View style={styles.modalContainer}>
                     <View style={styles.modalContent}>
-                        <Text style={styles.text}>{modalMessage}</Text>
+                        <Text style={styles.textDefault}>{modalMessage}</Text>
                         <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
                     </View>
                 </View>
@@ -412,7 +412,7 @@ const PendingCheckIns = () => {
 };
 
 const styles = StyleSheet.create({
-  text: {
+  textDefault: {
     color: '#333',
   },
   container: {
@@ -525,6 +525,12 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginBottom: 20,
     color: 'black',
+  },
+  modalTitleSucced: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#3bc55e',
   },
   readerItem: {
     paddingVertical: 10,
