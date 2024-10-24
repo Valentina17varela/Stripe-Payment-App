@@ -170,8 +170,10 @@ const styles = StyleSheet.create({
     paddingRight: 8,
   },
   actionColumn: {
-    flex: 1.5,
-    alignItems: 'flex-end',
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'left',
+    paddingHorizontal: 10,
   },
   button: {
     backgroundColor: '#111827',
