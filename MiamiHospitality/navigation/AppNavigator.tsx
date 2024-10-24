@@ -1,11 +1,32 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer } from '@react-navigation/native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import LoginScreen from '../screens/LoginScreen';
 import PendingCheckIns from '../screens/PendingCheckIns';
+import Breakfasts from '../screens/Breakfasts';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+
 
 const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator();
+
+function TabNavigator() {
+  return (
+    <Tab.Navigator>
+      <Tab.Screen 
+        name="CheckIns" 
+        component={PendingCheckIns} 
+        options={{ headerShown: false }}
+      />
+      <Tab.Screen 
+        name="Breakfasts" 
+        component={Breakfasts} 
+        options={{ headerShown: false }}
+      />
+    </Tab.Navigator>
+  );
+}
+
 
 export default function AppNavigator() {
   return (
@@ -29,7 +50,7 @@ export default function AppNavigator() {
         />
         <Stack.Screen 
           name="PendingCheckIns" 
-          component={PendingCheckIns} 
+          component={TabNavigator} 
           options={{ headerShown: false }} 
         />
       </Stack.Navigator>
