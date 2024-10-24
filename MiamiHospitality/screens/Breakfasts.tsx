@@ -8,8 +8,10 @@ import {
   ScrollView,
   ActivityIndicator,
   Modal,
-  Alert
+  Alert,
+  TextInput
 } from 'react-native';
+import { Picker } from '@react-native-picker/picker';
 
 interface Guest {
   id: number;
@@ -17,6 +19,17 @@ interface Guest {
   room: string;
   breakfasts_left: number;
   source: string;
+}
+
+interface AddGuestModalProps {
+  visible: boolean;
+  onClose: () => void;
+  onAddGuest: (guest: { 
+    guest: string; 
+    room: string; 
+    breakfasts_left: number; 
+    source: string; 
+  }) => void;
 }
 
 const BreakfastModal = ({ 
@@ -103,6 +116,136 @@ const BreakfastModal = ({
   );
 };
 
+const AddGuestModal = ({ visible, onClose, onAddGuest }: AddGuestModalProps) => {
+  const [name, setName] = useState('');
+  const [room, setRoom] = useState('');
+  const [breakfasts, setBreakfasts] = useState(1);
+  const [source, setSource] = useState('Hotel');
+  const pricePerBreakfast = 15;
+
+  const handleIncrement = () => {
+    setBreakfasts(prev => prev + 1);
+  };
+
+  const handleDecrement = () => {
+    if (breakfasts > 1) {
+      setBreakfasts(prev => prev - 1);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!name.trim() || !room.trim()) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    onAddGuest({
+      guest: name,
+      room,
+      breakfasts_left: breakfasts,
+      source
+    });
+
+    setName('');
+    setRoom('');
+    setBreakfasts(1);
+    setSource('Hotel');
+  };
+
+  return (
+    <Modal
+      animationType="fade"
+      transparent={true}
+      visible={visible}
+      onRequestClose={onClose}
+    >
+      <View style={styles.modalOverlay}>
+        <View style={styles.modalContent}>
+          <TouchableOpacity onPress={onClose} style={styles.closeButton}>
+            <Text style={styles.closeButtonText}>×</Text>
+          </TouchableOpacity>
+          <View style={styles.modalHeader}>
+            <Text style={styles.modalTitle}>Add New Guest</Text>
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Name</Text>
+            <TextInput
+              style={styles.input}
+              value={name}
+              onChangeText={setName}
+              placeholder="Enter guest name"
+            />
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Room</Text>
+            <TextInput
+              style={styles.input}
+              value={room}
+              onChangeText={setRoom}
+              placeholder="Enter room number"
+            />
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Breakfasts</Text>
+          </View>
+          <View style={styles.formGroupQuantity}>
+            <View style={styles.quantitySelector}>
+              <TouchableOpacity 
+                style={[styles.quantityButton, breakfasts <= 1 && styles.disabledQuantityButton]}
+                onPress={handleDecrement}
+                disabled={breakfasts <= 1}
+              >
+                <Text style={styles.quantityButtonText}>−</Text>
+              </TouchableOpacity>
+
+              <Text style={styles.quantityText}>{breakfasts}</Text>
+
+              <TouchableOpacity 
+                style={styles.quantityButton}
+                onPress={handleIncrement}
+              >
+                <Text style={styles.quantityButtonText}>+</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          <View style={styles.formGroup}>
+            <Text style={styles.label}>Source</Text>
+            <View style={styles.pickerContainer}>
+              <Picker
+                selectedValue={source}
+                onValueChange={(itemValue) => setSource(itemValue)}
+                style={styles.picker}
+              >
+                <Picker.Item label="Hotel" value="Hotel" />
+                <Picker.Item label="MVR" value="MVR" />
+                <Picker.Item label="Property Manager" value="Property Manager" />
+              </Picker>
+            </View>
+          </View>
+
+          <View style={styles.priceInfo}>
+            <Text style={styles.priceText}>Price per breakfast: ${pricePerBreakfast}</Text>
+            <Text style={styles.totalText}>Total: ${pricePerBreakfast * breakfasts}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.submitButton}
+            onPress={handleSubmit}
+          >
+            <Text style={styles.submitButtonText}>
+              Charge ${pricePerBreakfast * breakfasts}
+            </Text>
+          </TouchableOpacity>
+        </View>
+      </View>
+    </Modal>
+  );
+};
+
 const Breakfasts = () => {
   const [breakfasts, setBreakfasts] = useState<Guest[]>([]);
   const [loading, setLoading] = useState(true);
@@ -110,6 +253,8 @@ const Breakfasts = () => {
   const [modalVisible, setModalVisible] = useState(false);
   const [selectedGuest, setSelectedGuest] = useState<Guest | null>(null);
   const [modalInfo, setModalInfo] = useState(false);
+  const [message, setMessage] = useState('');
+  const [addGuestModalVisible, setAddGuestModalVisible] = useState(false);
 
   useEffect(() => {
     fetchBreakfasts();
@@ -126,7 +271,6 @@ const Breakfasts = () => {
       setLoading(false);
     }
   };
-
 
   const handleUseBreakfast = async (quantity: number) => {
     if (!selectedGuest) return;
@@ -149,6 +293,7 @@ const Breakfasts = () => {
       if (response.status === 200) {
         await fetchBreakfasts();
         setModalVisible(false);
+        setMessage('Breakfast(s) used successfully');
         setModalInfo(true);
         setTimeout(() => {
           setModalInfo(false);
@@ -167,8 +312,43 @@ const Breakfasts = () => {
     }
   };
 
+  const handleAddGuest = async (guestData: {
+    guest: string;
+    room: string;
+    breakfasts_left: number;
+    source: string;
+  }) => {
+    try {
+      setUpdating(true);
+      const response = await fetch('https://email.mvr-management.com/add_breakfast', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(guestData),
+      });
+  
+      if (response.status === 200) {
+        await fetchBreakfasts();
+        setAddGuestModalVisible(false);
+        setMessage('Guest added successfully');
+        setModalInfo(true);
+        setTimeout(() => {
+          setModalInfo(false);
+        }, 1500);
+      } else {
+        Alert.alert('Error', 'Failed to add guest');
+      }
+    } catch (error) {
+      console.error('Error adding guest:', error);
+      Alert.alert('Error', 'An error occurred while adding the guest');
+    } finally {
+      setUpdating(false);
+    }
+  };
+  
   const handleAddNewGuest = () => {
-    console.log('Add new guest');
+    setAddGuestModalVisible(true);
   };
 
   if (loading) {
@@ -244,10 +424,16 @@ const Breakfasts = () => {
       >
         <View style={styles.modalContainer}>
           <View style={styles.modalContent}>
-              <Text style={styles.modalTitleSucced}>Breakfast(s) used successfully</Text>
+              <Text style={styles.modalTitleSucced}>{message}</Text>
           </View>
         </View>
       </Modal>
+
+      <AddGuestModal
+        visible={addGuestModalVisible}
+        onClose={() => setAddGuestModalVisible(false)}
+        onAddGuest={handleAddGuest}
+      />
 
     </SafeAreaView>
   );
@@ -296,10 +482,9 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 3,
     marginBottom: 20,
-    // Removed flex: 1 to allow container to shrink to content
   },
   scrollContent: {
-    flexGrow: 0, // Prevents scroll view from expanding beyond content
+    flexGrow: 0,
   },
   headerRow: {
     flexDirection: 'row',
@@ -440,6 +625,71 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   confirmButtonText: {
+    color: 'white',
+    fontSize: 16,
+    fontWeight: '500',
+    textAlign: 'center',
+  },
+  modalHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  formGroup: {
+    marginBottom: 20,
+    width: '100%'
+  },
+  formGroupQuantity: {
+    marginBottom: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '50%',
+  },
+  label: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#374151',
+    marginBottom: 8,
+  },
+  input: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 6,
+    padding: 12,
+    fontSize: 16,
+  },
+  pickerContainer: {
+    borderWidth: 1,
+    borderColor: '#D1D5DB',
+    borderRadius: 6,
+    overflow: 'hidden',
+  },
+  picker: {
+    height: 50,
+  },
+  priceInfo: {
+    marginBottom: 20,
+    alignItems: 'center',
+  },
+  priceText: {
+    fontSize: 14,
+    color: '#6B7280',
+  },
+  totalText: {
+    fontSize: 16,
+    fontWeight: '500',
+    color: '#111827',
+    marginTop: 4,
+  },
+  submitButton: {
+    backgroundColor: '#111827',
+    paddingVertical: 12,
+    borderRadius: 6,
+    paddingHorizontal: 24,
+    width: '100%',
+  },
+  submitButtonText: {
     color: 'white',
     fontSize: 16,
     fontWeight: '500',
