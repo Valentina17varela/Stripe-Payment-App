@@ -172,7 +172,7 @@ const styles = StyleSheet.create({
   actionColumn: {
     flex: 1,
     justifyContent: 'center',
-    alignItems: 'left',
+    alignItems: 'flex-start',
     paddingHorizontal: 10,
   },
   button: {
