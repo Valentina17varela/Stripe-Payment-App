@@ -82,7 +82,7 @@ const PendingCheckIns = () => {
         setIsConnecting(true);
         const { reader: connectedReader, error } = await connectBluetoothReader({
             reader,
-            locationId: reader.locationId,
+            locationId: 'tml_FxXDAfDF0J4Ibh',
         });
 
         if (error) {
@@ -291,7 +291,7 @@ const PendingCheckIns = () => {
                         {(isConnecting || isDiscovering) ? (
                             <View style={styles.modalContent}>
                                 <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
-                                <Text>{isDiscovering ? "Discovering readers..." : "Connecting to reader..."}</Text>
+                                <Text style={styles.textDefault}>{isDiscovering ? "Discovering readers..." : "Connecting to reader..."}</Text>
                             </View>
                         ) : (
                             discoveredReaders.length > 0 ? (
@@ -324,14 +324,14 @@ const PendingCheckIns = () => {
             >
                 <View style={styles.modalContainer}>
                 <View style={styles.modalContent}>
-                    <Text style={styles.modalTitle}>Payment Successful</Text>
+                    <Text style={styles.modalTitleSucced}>Payment Successful</Text>
                     {paymentInfo && (
                     <View>
-                        <Text>Customer: {paymentInfo.customer}</Text>
-                        <Text>Property: {paymentInfo.property}</Text>
-                        <Text>Amount: ${paymentInfo.amount}</Text>
-                        <Text>Payment Method: {paymentInfo.paymentMethod}</Text>
-                        <Text>Status: {paymentInfo.status}</Text>
+                        <Text style={styles.textDefault}>Customer: {paymentInfo.customer}</Text>
+                        <Text style={styles.textDefault}>Property: {paymentInfo.property}</Text>
+                        <Text style={styles.textDefault}>Amount: ${paymentInfo.amount}</Text>
+                        <Text style={styles.textDefault}>Payment Method: {paymentInfo.paymentMethod}</Text>
+                        <Text style={styles.textDefault}>Status: {paymentInfo.status}</Text>
                     </View>
                     )}
                     <TouchableOpacity style={styles.closeButton} onPress={() => setModalVisiblePayment(false)}>
@@ -349,7 +349,7 @@ const PendingCheckIns = () => {
             >
                 <View style={styles.modalContainer}>
                     <View style={styles.modalContent}>
-                        <Text>{modalMessage}</Text>
+                        <Text style={styles.textDefault}>{modalMessage}</Text>
                         <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
                     </View>
                 </View>
@@ -412,6 +412,9 @@ const PendingCheckIns = () => {
 };
 
 const styles = StyleSheet.create({
+  textDefault: {
+    color: '#333',
+  },
   container: {
     flex: 1,
     backgroundColor: '#f5f5f5',
@@ -464,6 +467,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 4,
+    color: '#333',
   },
   subtitle: {
     fontSize: 16,
@@ -514,15 +518,24 @@ const styles = StyleSheet.create({
     borderRadius: 10,
     width: '80%',
     alignItems: 'center',
+    color: 'black',
   },
   modalTitle: {
     fontSize: 18,
     fontWeight: 'bold',
     marginBottom: 20,
+    color: 'black',
+  },
+  modalTitleSucced: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    marginBottom: 20,
+    color: '#3bc55e',
   },
   readerItem: {
     paddingVertical: 10,
     fontSize: 16,
+    color: '#333',
   },
   closeButton: {
     backgroundColor: '#3b82f6',
