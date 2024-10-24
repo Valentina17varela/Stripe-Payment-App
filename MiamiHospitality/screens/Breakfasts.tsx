@@ -788,6 +788,7 @@ const styles = StyleSheet.create({
     borderRadius: 6,
     padding: 12,
     fontSize: 16,
+    color: 'black'
   },
   pickerContainer: {
     borderWidth: 1,
@@ -797,6 +798,7 @@ const styles = StyleSheet.create({
   },
   picker: {
     height: 50,
+    color: 'black',
   },
   priceInfo: {
     marginBottom: 20,
