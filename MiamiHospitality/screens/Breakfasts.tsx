@@ -12,6 +12,7 @@ import {
   TextInput
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
+import { useStripeTerminal } from '@stripe/stripe-terminal-react-native';
 
 interface Guest {
   id: number;
@@ -31,6 +32,8 @@ interface AddGuestModalProps {
     source: string; 
   }) => void;
 }
+
+const pricePerBreakfast = 15;
 
 const BreakfastModal = ({ 
   visible, 
@@ -121,7 +124,6 @@ const AddGuestModal = ({ visible, onClose, onAddGuest }: AddGuestModalProps) => 
   const [room, setRoom] = useState('');
   const [breakfasts, setBreakfasts] = useState(1);
   const [source, setSource] = useState('Hotel');
-  const pricePerBreakfast = 15;
 
   const handleIncrement = () => {
     setBreakfasts(prev => prev + 1);
@@ -255,6 +257,10 @@ const Breakfasts = () => {
   const [modalInfo, setModalInfo] = useState(false);
   const [message, setMessage] = useState('');
   const [addGuestModalVisible, setAddGuestModalVisible] = useState(false);
+  const [isProcessingPayment, setIsProcessingPayment] = useState(false);
+  const [modalMessage, setModalMessage] = useState('');
+
+  const { createPaymentIntent, collectPaymentMethod, confirmPaymentIntent } = useStripeTerminal();
 
   useEffect(() => {
     fetchBreakfasts();
@@ -297,7 +303,7 @@ const Breakfasts = () => {
         setModalInfo(true);
         setTimeout(() => {
           setModalInfo(false);
-        }, 1500);
+        }, 2000);
       } else if (response.status === 400) {
         Alert.alert('Error', 'Not enough breakfast available');
       } else {
@@ -312,38 +318,142 @@ const Breakfasts = () => {
     }
   };
 
-  const handleAddGuest = async (guestData: {
+  const handleAddGuest = async (guest: {
     guest: string;
     room: string;
     breakfasts_left: number;
     source: string;
   }) => {
-    try {
-      setUpdating(true);
-      const response = await fetch('https://email.mvr-management.com/add_breakfast', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(guestData),
+
+    if (isProcessingPayment) {
+      console.log('Payment already in progress');
+      return;
+    }
+
+  try {
+      setIsProcessingPayment(true);
+      setModalMessage('Processing payment...');
+
+      let customerId = null;
+
+      const customerSearchResponse = await fetch(`https://api.stripe.com/v1/customers/search?query=name:'${guest.guest}'`, {
+          method: 'GET',
+          headers: {
+              'Authorization': `Bearer sk_test_4eC39HqLyjWDarjtT1zdp7dc`,  // Reemplaza con tu clave secreta de Stripe
+              'Content-Type': 'application/x-www-form-urlencoded',
+          },
       });
-  
-      if (response.status === 200) {
-        await fetchBreakfasts();
-        setAddGuestModalVisible(false);
-        setMessage('Guest added successfully');
-        setModalInfo(true);
-        setTimeout(() => {
-          setModalInfo(false);
-        }, 1500);
+
+      const customerSearchData = await customerSearchResponse.json();
+
+      if (customerSearchData.data && customerSearchData.data.length > 0) {
+          customerId = customerSearchData.data[0].id;
       } else {
-        Alert.alert('Error', 'Failed to add guest');
+          const customerCreationResponse = await fetch('https://email.mvr-management.com/create_customer_stripe', {
+              method: 'POST',
+              headers: {
+                  'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                  name: guest.guest,
+              }),
+          });
+
+          const customerCreationData = await customerCreationResponse.json();
+
+          if (customerCreationData.error) {
+              console.log('Error al crear cliente:', customerCreationData.error);
+              setModalMessage('Error creating customer');
+              setIsProcessingPayment(false);
+              setAddGuestModalVisible(false)
+              return;
+          }
+
+          customerId = customerCreationData.id;
       }
-    } catch (error) {
-      console.error('Error adding guest:', error);
-      Alert.alert('Error', 'An error occurred while adding the guest');
-    } finally {
-      setUpdating(false);
+
+      // Paso 3: Crea un PaymentIntent con el ID del cliente
+      const { paymentIntent, error: createError } = await createPaymentIntent({
+          amount: pricePerBreakfast * guest.breakfasts_left * 100,
+          currency: 'usd',
+          paymentMethodTypes: ['card_present'],
+          captureMethod: 'automatic',
+          customer: customerId,
+      });
+
+      if (createError || !paymentIntent) {
+          console.log("Error al crear PaymentIntent:", createError);
+          Alert.alert('Payment Error', `Failed to create payment intent: ${createError?.message || 'Unknown error'}`);
+          setIsProcessingPayment(false);
+          setAddGuestModalVisible(false)
+          return;
+      }
+
+      console.log("PaymentIntent creado:", paymentIntent);
+
+      setModalMessage('Please insert or tap the card on the reader');
+
+      // Paso 4: Recoge el método de pago
+      const { error: collectError } = await collectPaymentMethod({ paymentIntent });
+      if (collectError) {
+          console.log("Error al recoger el método de pago:", collectError);
+          Alert.alert('Payment Error', `Failed to collect payment: ${collectError.message}`);
+          setIsProcessingPayment(false);
+          setAddGuestModalVisible(false)
+          return;
+      }
+
+      console.log("Método de pago recogido exitosamente");
+      setModalMessage('Processing payment...');
+
+      // Paso 5: Confirma el PaymentIntent
+      const { paymentIntent: paymentConfirmation, error: confirmError } = await confirmPaymentIntent({ paymentIntent });
+      if (confirmError || !paymentConfirmation) {
+          console.log("Error al confirmar PaymentIntent:", confirmError);
+          Alert.alert('Payment Error', `Failed to confirm payment: ${confirmError?.message || 'Unknown error'}`);
+          setIsProcessingPayment(false);
+          setAddGuestModalVisible(false)
+          return;
+      }
+
+      console.log("PaymentIntent confirmado:", paymentConfirmation);
+
+      setIsProcessingPayment(false);
+
+      try {
+        setUpdating(true);
+        const response = await fetch('https://email.mvr-management.com/add_breakfast', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(guest),
+        });
+    
+        if (response.status === 200) {
+          await fetchBreakfasts();
+          setAddGuestModalVisible(false);
+          setMessage('Guest added successfully');
+          setModalInfo(true);
+          setTimeout(() => {
+            setModalInfo(false);
+          }, 2000);
+        } else {
+          Alert.alert('Error', 'Failed to add guest');
+          setAddGuestModalVisible(false)
+        }
+      } catch (error) {
+        console.error('Error adding guest:', error);
+        Alert.alert('Error', 'An error occurred while adding the guest');
+        setAddGuestModalVisible(false)
+      } finally {
+        setUpdating(false);
+      }
+    } catch (err) {
+        console.error('Error processing payment:', err);
+        Alert.alert('Payment Error', 'An error occurred while processing the payment');
+        setIsProcessingPayment(false);
+        setAddGuestModalVisible(false)
     }
   };
   
@@ -435,11 +545,31 @@ const Breakfasts = () => {
         onAddGuest={handleAddGuest}
       />
 
+      <Modal
+        transparent={true}
+        animationType="slide"
+        visible={isProcessingPayment}
+        onRequestClose={() => setIsProcessingPayment(false)}
+      >
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.textDefault}>{modalMessage}</Text>
+            <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
+          </View>
+        </View>
+      </Modal>
+
     </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
+  textDefault: {
+    color: '#333',
+  },
+  modalLoading: {
+    marginTop: 10,
+  },
   modalContainer: {
     flex: 1,
     justifyContent: 'center',

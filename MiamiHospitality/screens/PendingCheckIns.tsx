@@ -5,7 +5,7 @@ import { useStripeTerminal } from '@stripe/stripe-terminal-react-native';
 
 const PendingCheckIns = () => {
     const { initialize } = useStripeTerminal();
-    const [pendingCheckIns, setPendingCheckIns] = useState([]);
+    const [pendingCheckIns, setPendingCheckIns] = useState<{ email: string, customer: string; property: string; checkin: string; checkout: string; charge: number; external_reference: string; total: string; paid: string; debt: string; }[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [isReaderConnected, setIsReaderConnected] = useState(false);
@@ -101,7 +101,7 @@ const PendingCheckIns = () => {
         setConfirmModalVisible(true);
       };
 
-    const handlePayment = async (checkIn: { external_reference?: string; customer?: string; email?: string; property?: string; checkin?: string; checkout?: string; charge: any; external_id?: string; total?:string; debt?:string; paid?:string}) => {
+    const handlePayment = async (checkIn: { external_reference: string; customer?: string; email?: string; property?: string; checkin?: string; checkout?: string; charge: any; external_id?: string; total?:string; debt?:string; paid?:string}) => {
         setConfirmModalVisible(false);
 
         if (!selectedReader) {
@@ -163,6 +163,7 @@ const PendingCheckIns = () => {
                 paymentMethodTypes: ['card_present'],
                 captureMethod: 'automatic',
                 customer: customerId,
+                receiptEmail: checkIn.email,
             });
     
             if (createError || !paymentIntent) {
@@ -211,6 +212,7 @@ const PendingCheckIns = () => {
             });
     
             // Muestra la información del pago
+            setPendingCheckIns((prevCheckIns) => prevCheckIns.filter(item => item.external_reference !== checkIn.external_reference));
             setPaymentInfo({
                 customer: checkIn.customer,
                 property: checkIn.property,
