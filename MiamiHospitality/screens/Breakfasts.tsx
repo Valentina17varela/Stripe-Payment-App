@@ -13,6 +13,7 @@ import {
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
 import { useStripeTerminal, StripeTerminalProvider } from '@stripe/stripe-terminal-react-native';
+import Icon from 'react-native-vector-icons/FontAwesome';
 
 interface Guest {
   id: number;
@@ -259,8 +260,21 @@ const Breakfasts = () => {
   const [addGuestModalVisible, setAddGuestModalVisible] = useState(false);
   const [isProcessingPayment, setIsProcessingPayment] = useState(false);
   const [modalMessage, setModalMessage] = useState('');
+  const [isDiscovering, setIsDiscovering] = useState(false);
 
-  const { createPaymentIntent, collectPaymentMethod, confirmPaymentIntent } = useStripeTerminal();
+  const { initialize, discoverReaders, disconnectReader, connectBluetoothReader, discoveredReaders, createPaymentIntent, collectPaymentMethod, confirmPaymentIntent } = useStripeTerminal(
+      {
+        onUpdateDiscoveredReaders: (readers) => {
+          console.log('Discovered readers:', readers);
+            setIsDiscovering(false);
+            setModalVisible(true);
+        }
+      }
+  );
+
+  useEffect(() => {
+    initialize();
+  }, [initialize]);
 
   useEffect(() => {
     fetchBreakfasts();
@@ -461,16 +475,27 @@ const Breakfasts = () => {
     setAddGuestModalVisible(true);
   };
 
-  const fetchTokenProvider = async () => {
-    const response = await fetch(`https://email.mvr-management.com/connection_token_arya`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
+  const handleDiscoverReaders = async () => {
+    console.log('Discovering readers...');
+    setIsDiscovering(true);
+
+    await disconnectReader();
+    if (isDiscovering) {
+        console.log('Reader discovery already in progress');
+        return;
+    }
+
+    const { error } = await discoverReaders({
+        discoveryMethod: 'bluetoothScan',
+        simulated: true,
     });
-    const { secret } = await response.json();
-    return secret;
-  };
+
+    setIsDiscovering(false);
+
+    if (error) {
+        Alert.alert('Discover readers error', `${error.code}: ${error.message}`);
+    } 
+};
 
   if (loading) {
     return (
@@ -481,8 +506,12 @@ const Breakfasts = () => {
   }
 
   return (
-    <StripeTerminalProvider logLevel='verbose' tokenProvider={fetchTokenProvider}>
       <SafeAreaView style={styles.container}>
+        <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center' }}>
+          <TouchableOpacity onPress={handleDiscoverReaders} style={{ paddingRight: 30 }}>
+            <Icon name="bluetooth-b" color={'black'} size={30} />
+          </TouchableOpacity>
+        </View>
         <Text style={styles.title}>Arya Breakfast Admin</Text>
         
         <View style={styles.contentContainer}>
@@ -572,8 +601,26 @@ const Breakfasts = () => {
         </Modal>
 
       </SafeAreaView>
-    </StripeTerminalProvider>
   );
+};
+
+const IndexBreaskfasts = () => {
+  const fetchTokenProvider = async () => {
+    const response = await fetch(`https://email.mvr-management.com/connection_token_arya`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    const { secret } = await response.json();
+    return secret;
+  };
+
+  return (
+    <StripeTerminalProvider logLevel='verbose' tokenProvider={fetchTokenProvider}>
+      <Breakfasts />
+    </StripeTerminalProvider>
+  )
 };
 
 const styles = StyleSheet.create({
@@ -842,4 +889,4 @@ const styles = StyleSheet.create({
   },
 });
 
-export default Breakfasts;
+export default IndexBreaskfasts;
