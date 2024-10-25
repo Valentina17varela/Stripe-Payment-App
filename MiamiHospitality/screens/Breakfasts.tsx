@@ -12,7 +12,7 @@ import {
   TextInput
 } from 'react-native';
 import { Picker } from '@react-native-picker/picker';
-import { useStripeTerminal } from '@stripe/stripe-terminal-react-native';
+import { useStripeTerminal, StripeTerminalProvider } from '@stripe/stripe-terminal-react-native';
 
 interface Guest {
   id: number;
@@ -461,6 +461,17 @@ const Breakfasts = () => {
     setAddGuestModalVisible(true);
   };
 
+  const fetchTokenProvider = async () => {
+    const response = await fetch(`https://email.mvr-management.com/connection_token_arya`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+    });
+    const { secret } = await response.json();
+    return secret;
+  };
+
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
@@ -470,96 +481,98 @@ const Breakfasts = () => {
   }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <Text style={styles.title}>Arya Breakfast Admin</Text>
-      
-      <View style={styles.contentContainer}>
-        <View style={styles.headerRow}>
-          <Text style={[styles.headerText, styles.nameColumn]}>NAME</Text>
-          <Text style={[styles.headerText, styles.roomColumn]}>ROOM</Text>
-          <Text style={[styles.headerText, styles.breakfastsColumn]}>BREAKFASTS LEFT</Text>
-          <Text style={[styles.headerText, styles.sourceColumn]}>SOURCE</Text>
-          <Text style={[styles.headerText, styles.actionColumn]}>ACTION</Text>
-        </View>
+    <StripeTerminalProvider logLevel='verbose' tokenProvider={fetchTokenProvider}>
+      <SafeAreaView style={styles.container}>
+        <Text style={styles.title}>Arya Breakfast Admin</Text>
         
-        <ScrollView contentContainerStyle={styles.scrollContent}>
-          {breakfasts.map((item: any) => (
-            <View key={item.id} style={styles.row}>
-              <Text style={[styles.text, styles.nameColumn]}>{item.guest}</Text>
-              <Text style={[styles.text, styles.roomColumn]}>{item.room}</Text>
-              <Text style={[styles.text, styles.breakfastsColumn]}>{item.breakfasts_left}</Text>
-              <Text style={[styles.text, styles.sourceColumn]}>{item.source}</Text>
-              <View style={styles.actionColumn}>
-                <TouchableOpacity
-                  style={styles.button}
-                  onPress={() => {
-                    setSelectedGuest(item);
-                    setModalVisible(true);
-                  }}
-                  disabled={updating || item.breakfasts_left <= 0}
-                >
-                  <Text style={styles.addButtonText}>
-                    {updating ? 'Updating...' : 'Use Breakfast'}
-                  </Text>
-                </TouchableOpacity>
+        <View style={styles.contentContainer}>
+          <View style={styles.headerRow}>
+            <Text style={[styles.headerText, styles.nameColumn]}>NAME</Text>
+            <Text style={[styles.headerText, styles.roomColumn]}>ROOM</Text>
+            <Text style={[styles.headerText, styles.breakfastsColumn]}>BREAKFASTS LEFT</Text>
+            <Text style={[styles.headerText, styles.sourceColumn]}>SOURCE</Text>
+            <Text style={[styles.headerText, styles.actionColumn]}>ACTION</Text>
+          </View>
+          
+          <ScrollView contentContainerStyle={styles.scrollContent}>
+            {breakfasts.map((item: any) => (
+              <View key={item.id} style={styles.row}>
+                <Text style={[styles.text, styles.nameColumn]}>{item.guest}</Text>
+                <Text style={[styles.text, styles.roomColumn]}>{item.room}</Text>
+                <Text style={[styles.text, styles.breakfastsColumn]}>{item.breakfasts_left}</Text>
+                <Text style={[styles.text, styles.sourceColumn]}>{item.source}</Text>
+                <View style={styles.actionColumn}>
+                  <TouchableOpacity
+                    style={styles.button}
+                    onPress={() => {
+                      setSelectedGuest(item);
+                      setModalVisible(true);
+                    }}
+                    disabled={updating || item.breakfasts_left <= 0}
+                  >
+                    <Text style={styles.addButtonText}>
+                      {updating ? 'Updating...' : 'Use Breakfast'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
               </View>
+            ))}
+          </ScrollView>
+        </View>
+
+        <TouchableOpacity
+          style={styles.addButton}
+          onPress={handleAddNewGuest}
+        >
+          <Text style={styles.addButtonText}>Add New Guest</Text>
+        </TouchableOpacity>
+
+        <BreakfastModal
+          visible={modalVisible}
+          onClose={() => {
+            setModalVisible(false);
+            setSelectedGuest(null);
+          }}
+          onConfirm={handleUseBreakfast}
+          guestName={selectedGuest?.guest || ''}
+          maxBreakfasts={selectedGuest?.breakfasts_left || 0}
+        />
+
+        <Modal
+          visible={modalInfo}
+          transparent={true}
+          animationType="slide"
+          onRequestClose={() => setModalInfo(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+                <Text style={styles.modalTitleSucced}>{message}</Text>
             </View>
-          ))}
-        </ScrollView>
-      </View>
-
-      <TouchableOpacity
-        style={styles.addButton}
-        onPress={handleAddNewGuest}
-      >
-        <Text style={styles.addButtonText}>Add New Guest</Text>
-      </TouchableOpacity>
-
-      <BreakfastModal
-        visible={modalVisible}
-        onClose={() => {
-          setModalVisible(false);
-          setSelectedGuest(null);
-        }}
-        onConfirm={handleUseBreakfast}
-        guestName={selectedGuest?.guest || ''}
-        maxBreakfasts={selectedGuest?.breakfasts_left || 0}
-      />
-
-      <Modal
-        visible={modalInfo}
-        transparent={true}
-        animationType="slide"
-        onRequestClose={() => setModalInfo(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-              <Text style={styles.modalTitleSucced}>{message}</Text>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-      <AddGuestModal
-        visible={addGuestModalVisible}
-        onClose={() => setAddGuestModalVisible(false)}
-        onAddGuest={handleAddGuest}
-      />
+        <AddGuestModal
+          visible={addGuestModalVisible}
+          onClose={() => setAddGuestModalVisible(false)}
+          onAddGuest={handleAddGuest}
+        />
 
-      <Modal
-        transparent={true}
-        animationType="slide"
-        visible={isProcessingPayment}
-        onRequestClose={() => setIsProcessingPayment(false)}
-      >
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.textDefault}>{modalMessage}</Text>
-            <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
+        <Modal
+          transparent={true}
+          animationType="slide"
+          visible={isProcessingPayment}
+          onRequestClose={() => setIsProcessingPayment(false)}
+        >
+          <View style={styles.modalContainer}>
+            <View style={styles.modalContent}>
+              <Text style={styles.textDefault}>{modalMessage}</Text>
+              <ActivityIndicator size="large" color="#3b82f6" style={styles.modalLoading} />
+            </View>
           </View>
-        </View>
-      </Modal>
+        </Modal>
 
-    </SafeAreaView>
+      </SafeAreaView>
+    </StripeTerminalProvider>
   );
 };
 

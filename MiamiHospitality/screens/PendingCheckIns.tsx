@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, SafeAreaView, Modal, Button } from 'react-native';
 import axios from 'axios';
 import { useStripeTerminal } from '@stripe/stripe-terminal-react-native';
+import Icon from 'react-native-vector-icons/FontAwesome';
 
 const PendingCheckIns = () => {
     const { initialize } = useStripeTerminal();
@@ -247,6 +248,7 @@ const PendingCheckIns = () => {
                     onPress={() => handleConfirmPayment(item)}
                     style={styles.button}
                 >
+                    <Icon name="credit-card-alt" color={'white'}/>
                     <Text style={styles.buttonText}>Process Payment</Text>
                 </TouchableOpacity>
             </View>
@@ -256,9 +258,10 @@ const PendingCheckIns = () => {
     return (
         <SafeAreaView style={styles.container}>
             <View style={styles.header}>
+                <Icon name="building" color={'white'} size={20}/>
                 <Text style={styles.headerTitle}>Hotel Arya</Text>
-                <TouchableOpacity onPress={handleDiscoverReaders}>
-                    <Text style={styles.headerIcon}>Connect Terminal</Text>
+                <TouchableOpacity onPress={handleDiscoverReaders} style={{paddingRight: 30}}>
+                    <Icon name="bluetooth-b" color={'white'} size={30}/>
                 </TouchableOpacity>
             </View>
 
@@ -437,6 +440,7 @@ const styles = StyleSheet.create({
     fontSize: 20,
     fontWeight: 'bold',
     flex: 1,
+    paddingLeft: 8,
   },
   subHeader: {
     fontSize: 24,
