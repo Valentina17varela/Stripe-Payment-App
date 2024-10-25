@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { View, Text, FlatList, StyleSheet, ActivityIndicator, Alert, TouchableOpacity, SafeAreaView, Modal, Button } from 'react-native';
 import axios from 'axios';
-import { useStripeTerminal } from '@stripe/stripe-terminal-react-native';
+import { useStripeTerminal, StripeTerminalProvider } from '@stripe/stripe-terminal-react-native';
 import Icon from 'react-native-vector-icons/FontAwesome';
 
 const PendingCheckIns = () => {
@@ -9,11 +9,9 @@ const PendingCheckIns = () => {
     const [pendingCheckIns, setPendingCheckIns] = useState<{ email: string, customer: string; property: string; checkin: string; checkout: string; charge: number; external_reference: string; total: string; paid: string; debt: string; }[]>([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [isReaderConnected, setIsReaderConnected] = useState(false);
     const [selectedReader, setSelectedReader] = useState<any>(null);
     const [isDiscovering, setIsDiscovering] = useState(false);
     const [isModalVisible, setModalVisible] = useState(false);
-    const [discoveredReadersState, setDiscoveredReadersState] = useState<any[]>([]);
     const [isModalVisiblePayment, setModalVisiblePayment] = useState(false);
     const [paymentInfo, setPaymentInfo] = useState<any>(null);
     const [isProcessingPayment, setIsProcessingPayment] = useState(false);
@@ -26,7 +24,6 @@ const PendingCheckIns = () => {
     const { discoverReaders, disconnectReader, connectBluetoothReader, discoveredReaders, createPaymentIntent, collectPaymentMethod, confirmPaymentIntent } = useStripeTerminal(
         {
             onUpdateDiscoveredReaders: (readers) => {
-                setDiscoveredReadersState(readers);
                 setIsDiscovering(false);
                 setModalVisible(true);
             }
@@ -90,7 +87,6 @@ const PendingCheckIns = () => {
             Alert.alert('Connection Error', `${error.code}: ${error.message}`);
         } else {
             setSelectedReader(connectedReader);
-            setIsReaderConnected(true);
             setIsConnecting(false);
             setModalVisible(false);
             Alert.alert('Reader Connected');
@@ -416,6 +412,25 @@ const PendingCheckIns = () => {
     );
 };
 
+const IndexCheckIns = () => {
+    const fetchTokenProvider = async () => {
+        const response = await fetch(`https://email.mvr-management.com/connection_token`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        });
+        const { secret } = await response.json();
+        return secret;
+      };
+
+    return (
+        <StripeTerminalProvider logLevel='verbose' tokenProvider={fetchTokenProvider}>
+            <PendingCheckIns />
+        </StripeTerminalProvider>
+    );
+}
+
 const styles = StyleSheet.create({
   textDefault: {
     color: '#333',
@@ -604,4 +619,4 @@ cancelButton: {
 },
 });
 
-export default PendingCheckIns;
+export default IndexCheckIns;

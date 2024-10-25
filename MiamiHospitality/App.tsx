@@ -63,24 +63,11 @@ export default function App() {
     }
   };
 
-  const fetchTokenProvider = async () => {
-    const response = await fetch(`https://email.mvr-management.com/connection_token`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    const { secret } = await response.json();
-    return secret;
-  };
-
   useEffect(() => {
     requestBluetoothAndLocationPermissions();
   }, []);
 
   return (
-    <StripeTerminalProvider logLevel='verbose' tokenProvider={fetchTokenProvider}>
-      <AppNavigator />
-    </StripeTerminalProvider>
+    <AppNavigator />
   )
 }
