@@ -1,11 +1,51 @@
 import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 import { NavigationContainer } from '@react-navigation/native';
-import Ionicons from 'react-native-vector-icons/Ionicons';
 import LoginScreen from '../screens/LoginScreen';
 import PendingCheckIns from '../screens/PendingCheckIns';
+import Breakfasts from '../screens/Breakfasts';
+import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import Icon from 'react-native-vector-icons/FontAwesome';
+
 
 const Stack = createStackNavigator();
+const Tab = createBottomTabNavigator();
+
+function TabNavigator() {
+  return (
+    <Tab.Navigator
+      screenOptions={{
+        tabBarActiveTintColor: '#3b82f6',
+        tabBarInactiveTintColor: 'gray',
+        tabBarStyle: { backgroundColor: '#fff' },
+      }}
+    >
+      <Tab.Screen 
+        name="CheckIns" 
+        component={PendingCheckIns} 
+        options={{
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => (
+            <Icon name="calendar-check-o" color={color} size={size} />
+          ),
+          tabBarLabel: "",
+        }}
+      />
+      <Tab.Screen 
+        name="Breakfasts" 
+        component={Breakfasts} 
+        options={{
+          headerShown: false,
+          tabBarIcon: ({ color, size }) => (
+            <Icon name="coffee" color={color} size={size} />
+          ),
+          tabBarLabel: "",
+        }}
+      />
+    </Tab.Navigator>
+  );
+}
+
 
 export default function AppNavigator() {
   return (
@@ -13,11 +53,11 @@ export default function AppNavigator() {
       <Stack.Navigator
         screenOptions={{
           headerStyle: {
-            backgroundColor: '#3b82f6', // Color de fondo del header
+            backgroundColor: '#3b82f6',
           },
-          headerTintColor: '#FFFFFF', // Color de los elementos del header
+          headerTintColor: '#FFFFFF',
           headerTitleStyle: {
-            fontWeight: 'bold', // Estilo de la fuente del título
+            fontWeight: 'bold',
           },
         }}
         initialRouteName='Login'
@@ -29,7 +69,7 @@ export default function AppNavigator() {
         />
         <Stack.Screen 
           name="PendingCheckIns" 
-          component={PendingCheckIns} 
+          component={TabNavigator} 
           options={{ headerShown: false }} 
         />
       </Stack.Navigator>
