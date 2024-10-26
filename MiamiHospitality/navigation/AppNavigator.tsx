@@ -31,17 +31,6 @@ function TabNavigator() {
           tabBarLabel: "",
         }}
       />
-      <Tab.Screen 
-        name="Breakfasts" 
-        component={Breakfasts} 
-        options={{
-          headerShown: false,
-          tabBarIcon: ({ color, size }) => (
-            <Icon name="coffee" color={color} size={size} />
-          ),
-          tabBarLabel: "",
-        }}
-      />
     </Tab.Navigator>
   );
 }
